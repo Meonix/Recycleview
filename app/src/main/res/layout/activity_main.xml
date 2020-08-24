@@ -27,6 +27,7 @@
             android:text="clear"
             android:layout_height="wrap_content"/>
         <EditText
+            android:id="@+id/etSearch"
             android:layout_gravity="center_vertical"
             android:layout_width="150dp"
             android:layout_height="wrap_content"/>

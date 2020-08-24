@@ -1,23 +1,19 @@
 package com.mionix.myapplication
 
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.Toast
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.android.synthetic.main.activity_main.*
+
 
 class MainActivity : AppCompatActivity() {
     //load more
@@ -127,6 +123,28 @@ class MainActivity : AppCompatActivity() {
             }
 
         }
+        etSearch.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable) {}
+            override fun beforeTextChanged(
+                s: CharSequence, start: Int,
+                count: Int, after: Int
+            ) {
+            }
+
+            override fun onTextChanged(
+                s: CharSequence, start: Int,
+                before: Int, count: Int
+            ) {
+                if(s==""){
+                    mAdapter.upDateAdapter(currentListData)
+                }
+                else{
+                    tempListData = currentListData.filter { it.string.contains(s)}.toMutableList()
+                    mAdapter.upDateAdapter(tempListData)
+                }
+
+            }
+        })
         spFilter.onItemSelectedListener = object :
             AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
