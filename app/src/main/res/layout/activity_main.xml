@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:orientation="vertical"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+    <LinearLayout
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:id="@+id/rl"
+        android:orientation="horizontal"
+        android:layout_alignParentTop="true"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+
+        <TextView
+            android:textSize="25sp"
+            android:padding="10dp"
+            android:layout_gravity="center_vertical"
+
+            android:id="@+id/tvClear"
+            android:layout_width="wrap_content"
+            android:text="clear"
+            android:layout_height="wrap_content"/>
+        <EditText
+            android:layout_gravity="center_vertical"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"/>
+        <Spinner
+            android:layout_gravity="center_vertical"
+            android:dropDownVerticalOffset="?attr/dropdownListPreferredItemHeight"
+            android:id="@+id/spFilter"
+            android:layout_width="70dp"
+            android:spinnerMode="dropdown"
+            android:layout_margin="10dp"
+            android:layout_height="wrap_content"/>
+        <TextView
+            android:textSize="25sp"
+            android:padding="10dp"
+            android:id="@+id/tvDelete"
+            android:layout_width="wrap_content"
+            android:text="Delete"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:layout_width="match_parent"
+        android:id="@+id/rv"
+        app:layout_constraintTop_toBottomOf="@id/rl"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_below="@id/rl"
+        app:layout_constraintBottom_toTopOf="@id/popularProgressBar"
+        android:layout_height="0dp"/>
+    <ProgressBar
+        android:layout_alignParentBottom="true"
+        android:id="@+id/popularProgressBar"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</androidx.constraintlayout.widget.ConstraintLayout>
