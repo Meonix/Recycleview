@@ -1,5 +1,7 @@
 package com.mionix.myapplication
 
+import android.app.ActionBar
+import android.app.Dialog
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -7,11 +9,18 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
+import android.view.Window
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.room.Room
+import com.mionix.myapplication.DB.DataTable
+import com.mionix.myapplication.DB.LocalDB
 import kotlinx.android.synthetic.main.activity_main.*
 
 
@@ -43,29 +52,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initListData() {
-        var i = 0
-        while (i<10){
-            listData.add(Data("Adsad",false))
-            listData.add(Data("gdsad",false))
-            listData.add(Data("Cdsad",false))
-            listData.add(Data("tdsad",false))
-            listData.add(Data("ydsad",false))
-            listData.add(Data("wdsad",false))
-            listData.add(Data("qdsad",false))
-            listData.add(Data("uafwq",false))
-            listData.add(Data("ajk",false))
-            listData.add(Data("badsv",false))
-            listData.add(Data("Basd",false))
-            listData.add(Data("csaeq",false))
-            listData.add(Data("QWT",false))
-            listData.add(Data("Adsad",false))
-            listData.add(Data("Adsad",false))
-            listData.add(Data("rqwqwd",false))
-            i += 1
-        }
+        val db = Room.databaseBuilder(applicationContext
+            , LocalDB::class.java
+            ,"MyMovieDB")
+            .fallbackToDestructiveMigration()
+            .build()
+        val timestampLong = System.currentTimeMillis()/60000
+        val timestamp = timestampLong.toString()
+        Thread{
 
+            if(db.dataDAO().readAllData().isEmpty()){
+                var i = 0
+                while (i<100){
+                    val favouritesTable = DataTable(i, "data $i", false)
+                    db.dataDAO().saveData(favouritesTable)
+                    i += 1
+                }
+            }
+            else{
+                db.dataDAO().readAllData().forEach {
+//                    Log.i("DUY","""" Id id: ${it.data} """")
+                    if(it.data !=null && it.isSelect !=null){
+                        listData.add(Data(it.data,it.isSelect))
+                    }
+                    Log.i("DUY","""" Id id: ${it.dataID} """")
+                }
+                getListData(1)
+                page += 1
+            }
+        }.start()
     }
+    private fun addingDataToDB(id:Int,data:String){
+                val db = Room.databaseBuilder(applicationContext
+            , LocalDB::class.java
+            ,"MyMovieDB")
+            .fallbackToDestructiveMigration()
+            .build()
+        val timestampLong = System.currentTimeMillis()/60000
+        val timestamp = timestampLong.toString()
+        Thread{
 
+            if(db.dataDAO().readAllData().isNotEmpty()){
+                val favouritesTable = DataTable(id, data, false)
+                db.dataDAO().saveData(favouritesTable)
+            }
+            else{
+                db.dataDAO().readAllData().forEach {
+                    Log.i("DUY","""" Id id: ${it.data} """")
+                }
+
+            }
+        }.start()
+    }
     private fun initLoadMore() {
         rv.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -74,7 +112,7 @@ class MainActivity : AppCompatActivity() {
                     val pastVisibleItem = layoutManager.findFirstCompletelyVisibleItemPosition()
                     val total = mAdapter.itemCount
                     if (isLoading) {
-                        if ((visibleItemCount + pastVisibleItem) >= total) {
+                        if ((visibleItemCount + pastVisibleItem) >= total && page*25<listData.size) {
                             page += 1
 
                             getMorePage()
@@ -103,10 +141,12 @@ class MainActivity : AppCompatActivity() {
             val a = 25* page
             var startAt = currentListData.size
             while(startAt<a){
+                if(listData.size==startAt){
+                    break
+                }
                 currentListData.add(listData[startAt])
                 startAt += 1
             }
-
     }
 
     private fun handleOnClick() {
@@ -167,10 +207,26 @@ class MainActivity : AppCompatActivity() {
 
             }
         }
+        fab.setOnClickListener {
+            showCustomDialog()
+        }
     }
+    private fun showCustomDialog() {
+        val dialog = Dialog(this@MainActivity)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setCancelable(true)
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.setContentView(R.layout.dialog_custom_layout)
+        val btAdd = dialog.findViewById(R.id.btAdd) as Button
+        val etAddingData = dialog.findViewById(R.id.etAddingData) as EditText
+            btAdd.setOnClickListener {
+                val data = etAddingData.text.toString()
+                addingDataToDB(listData.size,data)
+            }
+        dialog.show()
 
+    }
     private fun initRecycleView() {
-        getListData(page)
         mAdapter = Adapter(currentListData)
         rv.adapter = mAdapter
         layoutManager = LinearLayoutManager(this@MainActivity)
