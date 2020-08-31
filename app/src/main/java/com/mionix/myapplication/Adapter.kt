@@ -85,4 +85,4 @@ class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.
         holder.onBindData(position)
     }
 }
-data class Data(var string :String , var isSelect:Boolean)
+data class Data(var id :Int ,var string :String , var isSelect:Boolean)
