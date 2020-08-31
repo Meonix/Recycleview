@@ -10,12 +10,9 @@ class DataTable (@PrimaryKey
                        @ColumnInfo(name = "data")
                        val data: String?,
                        @ColumnInfo(name = "isSelect")
-                       val isSelect: Boolean?/*,
-                       @ColumnInfo(name = "overview")
-                       val colOverview: String?,
-                       @ColumnInfo(name = "dateSave")
-                       val colDateSave: String?*/
+                       val isSelect: Boolean?
 )
+//Adding more Table if needed
 //@Entity
 //class WatchListTable (
 //    @PrimaryKey

@@ -27,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 
 class MainActivity : AppCompatActivity() {
@@ -38,11 +40,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mAdapter : Adapter
     private var listData = mutableListOf<Data>()
     private var currentListData = mutableListOf<Data>()
-    private lateinit var db :LocalDB
+    private val mDB by inject<LocalDB>()
+    private val dBViewModel : DBViewModel by viewModel()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        initLocalDB()
+
         initView()
         GlobalScope.launch(Dispatchers.IO) {
             initListData()
@@ -52,14 +55,6 @@ class MainActivity : AppCompatActivity() {
         initLoadMore()
     }
 
-    private fun initLocalDB() {
-        db = Room.databaseBuilder(applicationContext
-            , LocalDB::class.java
-            ,"MyMovieDB")
-            .fallbackToDestructiveMigration()
-            .build()
-    }
-
     private fun initView() {
         val spinnerLeft = arrayOf("no Filter","A-z")
         val arrayAdapterLeft = ArrayAdapter(this@MainActivity,R.layout.support_simple_spinner_dropdown_item,spinnerLeft)
@@ -67,26 +62,17 @@ class MainActivity : AppCompatActivity() {
     }
     private suspend fun getAllData(){
         return withContext(Dispatchers.IO) {
-                db.dataDAO().readAllData().forEach {
-//                    Log.i("DUY","""" Id id: ${it.data} """")
-                    if (it.data != null && it.isSelect != null) {
-                        listData.add(Data(it.dataID,it.data, it.isSelect))
-                    }
-                    Log.i("DUY", """" Id id: ${it.dataID} """")
-                }
-
+            dBViewModel.getAllData(listData)
         }
 
     }
     private suspend fun initListData() {
         try {
-            val timestampLong = System.currentTimeMillis()/60000
-            val timestamp = timestampLong.toString()
-            if(db.dataDAO().readAllData().isEmpty()){
+            if(mDB.dataDAO().readAllData().isEmpty()){
                 var i = 0
                 while (i<100){
                     val favouritesTable = DataTable(i, "data $i", false)
-                    db.dataDAO().saveData(favouritesTable)
+                    mDB.dataDAO().saveData(favouritesTable)
                     i += 1
                 }
                 getAllData()
@@ -106,7 +92,7 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun getData(id: Int){
         return withContext(Dispatchers.IO){
-                db.dataDAO().readData(id).let {
+            mDB.dataDAO().readData(id).let {
                     if(it.data !=null && it.isSelect !=null){
                         listData.forEachIndexed { index, data ->
                             if(listData[index].id < it.dataID  && it.dataID < listData[index+1].id){
@@ -125,14 +111,12 @@ class MainActivity : AppCompatActivity() {
     }
     private suspend fun addingDataToDB(id:Int,data:String){
         try {
-            val timestampLong = System.currentTimeMillis()/60000
-            val timestamp = timestampLong.toString()
-            if(db.dataDAO().readAllData().isNotEmpty()){
-                db.dataDAO().saveData(DataTable(id, data, false))
+            if(mDB.dataDAO().readAllData().isNotEmpty()){
+                mDB.dataDAO().saveData(DataTable(id, data, false))
                 getData(id)
             }
             else{
-                db.dataDAO().readAllData().forEach {
+                mDB.dataDAO().readAllData().forEach {
                     Log.i("DUY","""" Id id: ${it.data} """")
                 }
                 getData(id)
@@ -199,8 +183,8 @@ class MainActivity : AppCompatActivity() {
                     try {
                         currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
                             if(data.isSelect){
-                                db.dataDAO().readData(data.id).let {
-                                    db.dataDAO().deleteData(DataTable(data.id,data.string,false))
+                                mDB.dataDAO().readData(data.id).let {
+                                    mDB.dataDAO().deleteData(DataTable(data.id,data.string,false))
                                 }
 
                             }
@@ -240,11 +224,13 @@ class MainActivity : AppCompatActivity() {
                 before: Int, count: Int
             ) {
                 if(s.toString() == ""){
-                    currentListData = listData
+                    currentListData.clear()
+                    getListData(1)
+                   // currentListData = listData
                     mAdapter.upDateAdapter(currentListData)
                 }
                 else{
-                    currentListData = currentListData.filter { it.string.contains(s)}.toMutableList()
+                    currentListData = listData.filter { it.string.contains(s)}.toMutableList()
                     tvDelete.setOnClickListener {
                         tvDeleteClickedWhenFilter()
 //                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -287,7 +273,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 else if(spFilter.selectedItem.toString()=="no Filter"){
                     deleteOnClick()
-                    currentListData = listData
+                    currentListData.clear()
+                    getListData(1)
+                    //currentListData = listData
                     mAdapter.upDateAdapter(currentListData)
                 }
             }
@@ -306,7 +294,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     currentListData.filter { it.isSelect }
                         .forEachIndexed { index, data ->
-                                db.dataDAO().deleteData(DataTable(data.id,data.string,false))
+                            mDB.dataDAO().deleteData(DataTable(data.id,data.string,false))
                                 listData.remove(Data(data.id,data.string,data.isSelect))
                         }
                     currentListData.removeIf { data: Data ->  data.isSelect}
