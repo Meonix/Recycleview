@@ -9,16 +9,9 @@
         android:hint="data"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
-    <EditText
-        android:layout_below="@id/etAddingData"
-        android:id="@+id/etUniqueIDData"
-        android:hint="Id Unique Data"
-        android:inputType="number"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
     <Button
-        android:layout_below="@id/etUniqueIDData"
         android:text="add"
+        android:layout_below="@id/etAddingData"
         android:id="@+id/btAdd"
         android:layout_gravity="center"
         android:layout_width="wrap_content"

@@ -10,7 +10,7 @@ class DataTable (@PrimaryKey
                        @ColumnInfo(name = "data")
                        val data: String?,
                        @ColumnInfo(name = "isSelect")
-                       val isSelect: Boolean?
+                       val isSelect: Boolean
 )
 //Adding more Table if needed
 //@Entity
