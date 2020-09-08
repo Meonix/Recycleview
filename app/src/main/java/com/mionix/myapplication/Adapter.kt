@@ -39,22 +39,6 @@ class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.
                     setColor(data[position])
                 }
             }
-//        private fun checkFlag(model: Data){
-//            val filterList = data.filter { data ->
-//                data.isSelect
-//            }
-//            if(filterList.isNotEmpty()&& model.isSelect){
-//                model.isSelect = false
-//                onItemClick?.invoke(itemView,model.isSelect)
-//            }
-//            else if(filterList.isNotEmpty() && !model.isSelect){
-//                model.isSelect = true
-//                onItemClick?.invoke(itemView,model.isSelect)
-//            }
-//            else{
-//                model.isSelect = false
-//                onItemClick?.invoke(itemView,model.isSelect)
-//            }
         }
         private fun setColor(model: Data){
             itemView.setBackgroundColor(
@@ -85,4 +69,4 @@ class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.
         holder.onBindData(position)
     }
 }
-data class Data(var id :Int ,var string :String , var isSelect:Boolean)
+data class Data(var id :String ,var string :String , var isSelect:Boolean)

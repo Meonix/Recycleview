@@ -33,9 +33,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mAdapter : Adapter
     private var currentListData = mutableListOf<Data>()
     private val dBViewModel : DBViewModel by viewModel()
-    private var sizeOfDB = 0
-    private var observerList : Deferred<MutableList<Data>> ?=null
-    private var flagFilter = false
+    private var isAToZFilter = false
+
+    companion object{
+        const val FILTER_FROM_A_TO_Z ="A-z"
+        const val NO_FILTER = "no Filter"
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -47,50 +50,33 @@ class MainActivity : AppCompatActivity() {
         handleOnClick()
         initLoadMore()
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isLoading = true
+        isAToZFilter = false
+    }
     private fun initView() {
         val spinnerLeft = arrayOf("no Filter","A-z")
         val arrayAdapterLeft = ArrayAdapter(this@MainActivity,R.layout.support_simple_spinner_dropdown_item,spinnerLeft)
         spFilter.adapter = arrayAdapterLeft
     }
     private fun initListData() {
-        try {
             if(dBViewModel.getSize() == 0){
-                var i = 0
-                while (i<100){
-                    dBViewModel.saveData("data $i")
-                    i += 1
-                }
-                observerData()
-
+                dBViewModel.initDataForTheFirstTime()
             }
-            else{
-                observerData()
-            }
-            // define the size of list data in DB
-            sizeOfDB = dBViewModel.getSize()
-        } catch (e: Exception) {
-            Log.i("DUY","Error ${e.message} ")
-        }
-
-    }
-    //this function to hearing data form observerList every time when page is changed
-    private fun observerData(){
-        observerList = GlobalScope.async {
-            getMoreData()
-        }
     }
 
-    private fun addingDataToDB(data:String){
+
+    private fun addDataToDB(data:String){
         dBViewModel.saveData(data)
-        if(flagFilter){
+        if(isAToZFilter){
             GlobalScope.launch(Dispatchers.Main) {
                 currentListData.clear()
-                observerData()
-                observerList?.let {currentListData =  it.await()}
+                dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
                 mAdapter.upDateAdapter(currentListData)
             }
         }
-        sizeOfDB = dBViewModel.getSize()
     }
     //Load more//
     private fun initLoadMore() {
@@ -100,14 +86,17 @@ class MainActivity : AppCompatActivity() {
                     val visibleItemCount = layoutManager.childCount
                     val pastVisibleItem = layoutManager.findFirstCompletelyVisibleItemPosition()
                     val total = mAdapter.itemCount
-                    if (isLoading) {
-                        if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDB) {
-                         //   page += 1
-
-                            getMorePage()
-                            isLoading = false
+                    GlobalScope.launch(Dispatchers.IO) {
+                        val sizeOfDb= dBViewModel.getSize()
+                        if (isLoading) {
+                            if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
+                                //   page += 1
+                                getMorePage()
+                                isLoading = false
+                            }
                         }
                     }
+
                 }
                 super.onScrolled(recyclerView, dx, dy)
             }
@@ -117,24 +106,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun getMorePage(){
         isLoading = true
-        popularProgressBar.visibility = View.VISIBLE
-        Handler().postDelayed({
-            GlobalScope.launch(Dispatchers.Main) {
-                observerData()
-                observerList?.let{currentListData.addAll(it.await())}
-                mAdapter.upDateAdapter(currentListData)
-            }
-            popularProgressBar.visibility = View.GONE
-
-            isLoading = true
-        },1200)
-    }
-    private fun getMoreData():MutableList<Data>{
-        if(flagFilter){
-            return dBViewModel.getListDataSorted(currentListData.size)
+        GlobalScope.launch(Dispatchers.Main) {
+            popularProgressBar.visibility = View.VISIBLE
+            Handler().postDelayed({
+                GlobalScope.launch(Dispatchers.Main) {
+                    dBViewModel.getData(isAToZFilter,currentListData).let{currentListData.addAll(it.await())}
+                    mAdapter.upDateAdapter(currentListData)
+                    popularProgressBar.visibility = View.GONE
+                }
+                isLoading = true
+            },1200)
         }
-        return dBViewModel.getMoreData(currentListData.size)
+
     }
+
 
     //Load more//
     private fun deleteOnClick(){
@@ -179,14 +164,9 @@ class MainActivity : AppCompatActivity() {
                 s: CharSequence, start: Int,
                 before: Int, count: Int
             ) {
-                flagFilter = false
+                isAToZFilter = false
                 if(s.toString() == ""){
-                    GlobalScope.launch(Dispatchers.Main) {
-                        currentListData.clear()
-                        observerData()
-                        observerList?.let {currentListData =  it.await()}
-                        mAdapter.upDateAdapter(currentListData)
-                    }
+                    refreshData()
                 }
                 else{
                     GlobalScope.launch(Dispatchers.IO) {
@@ -203,37 +183,31 @@ class MainActivity : AppCompatActivity() {
             AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parentView: AdapterView<*>?,
-                selectedItemView: View,
+                selectedItemView: View?,
                 position: Int,
                 id: Long
             ) {
-                Log.d("DUY",spFilter.selectedItem.toString())
-                if(spFilter.selectedItem.toString()=="A-z"){
-                    flagFilter = true
-                    GlobalScope.launch(Dispatchers.Main) {
-                        currentListData.clear()
-                        observerData()
-                        observerList?.let {currentListData =  it.await()}
-                        mAdapter.upDateAdapter(currentListData)
-                    }
+                if(spFilter.selectedItem.toString() == FILTER_FROM_A_TO_Z){
+                    isAToZFilter = true
                 }
-                else if(spFilter.selectedItem.toString()=="no Filter"){
-                    flagFilter = false
-                    GlobalScope.launch(Dispatchers.Main) {
-                        currentListData.clear()
-                        observerData()
-                        observerList?.let {currentListData =  it.await()}
-                        mAdapter.upDateAdapter(currentListData)
-                    }
+                else if(spFilter.selectedItem.toString() == NO_FILTER){
+                    isAToZFilter = false
                 }
+                refreshData()
             }
-
             override fun onNothingSelected(parentView: AdapterView<*>?) {
 
             }
         }
         fab.setOnClickListener {
             showCustomDialog()
+        }
+    }
+    private fun refreshData(){
+        GlobalScope.launch(Dispatchers.Main) {
+            currentListData.clear()
+            dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
+            mAdapter.upDateAdapter(currentListData)
         }
     }
     private fun showCustomDialog() {
@@ -247,7 +221,7 @@ class MainActivity : AppCompatActivity() {
             btAdd.setOnClickListener {
                 val data = etAddingData.text.toString()
                 GlobalScope.launch(Dispatchers.IO){
-                    addingDataToDB(data)
+                    addDataToDB(data)
                 }
                 dialog.dismiss()
             }
@@ -255,7 +229,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun initRecycleView() {
         GlobalScope.launch(Dispatchers.Main) {
-            observerList?.let {currentListData =  it.await()}
+            dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
             mAdapter = Adapter(currentListData)
             rv.adapter = mAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)

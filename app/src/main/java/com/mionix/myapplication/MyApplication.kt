@@ -1,6 +1,9 @@
-package com.mionix.myapplication.di
+package com.mionix.myapplication
 
 import android.app.Application
+import com.mionix.myapplication.di.appModule
+import com.mionix.myapplication.di.repositoryModule
+import com.mionix.myapplication.di.viewModelModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
@@ -15,7 +18,11 @@ class MyApplication : Application() {
             // Android context
             androidContext(this@MyApplication)
             // modules
-            modules(arrayListOf(appModule/*,retrofitModule*/,viewModelModule,repositoryModule))
+            modules(arrayListOf(
+                appModule/*,retrofitModule*/,
+                viewModelModule,
+                repositoryModule
+            ))
         }
     }
 }
