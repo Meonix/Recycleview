@@ -1,6 +1,5 @@
 package com.mionix.myapplication
 
-import android.app.ActionBar
 import android.app.Dialog
 import android.os.Build
 import android.os.Bundle
@@ -18,131 +17,60 @@ import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.room.Room
 import com.mionix.myapplication.DB.DataTable
 import com.mionix.myapplication.DB.LocalDB
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.android.synthetic.main.dialog_custom_layout.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 
 class MainActivity : AppCompatActivity() {
     //load more
-    private var page = 1
     private var isLoading = true
     private lateinit var layoutManager: LinearLayoutManager
     //
     private lateinit var mAdapter : Adapter
-    private var listData = mutableListOf<Data>()
     private var currentListData = mutableListOf<Data>()
-    private lateinit var db :LocalDB
+    private val dBViewModel : DBViewModel by viewModel()
+    private var isAToZFilter = false
+
+    companion object{
+        const val FILTER_FROM_A_TO_Z ="A-z"
+        const val NO_FILTER = "no Filter"
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        initLocalDB()
         initView()
         GlobalScope.launch(Dispatchers.IO) {
-            initListData()
+            dBViewModel.initListData()
         }
         initRecycleView()
         handleOnClick()
         initLoadMore()
     }
 
-    private fun initLocalDB() {
-        db = Room.databaseBuilder(applicationContext
-            , LocalDB::class.java
-            ,"MyMovieDB")
-            .fallbackToDestructiveMigration()
-            .build()
+    override fun onDestroy() {
+        super.onDestroy()
+        isLoading = true
+        isAToZFilter = false
     }
-
     private fun initView() {
         val spinnerLeft = arrayOf("no Filter","A-z")
         val arrayAdapterLeft = ArrayAdapter(this@MainActivity,R.layout.support_simple_spinner_dropdown_item,spinnerLeft)
         spFilter.adapter = arrayAdapterLeft
     }
-    private suspend fun getAllData(){
-        return withContext(Dispatchers.IO) {
-                db.dataDAO().readAllData().forEach {
-//                    Log.i("DUY","""" Id id: ${it.data} """")
-                    if (it.data != null && it.isSelect != null) {
-                        listData.add(Data(it.dataID,it.data, it.isSelect))
-                    }
-                    Log.i("DUY", """" Id id: ${it.dataID} """")
-                }
 
-        }
 
-    }
-    private suspend fun initListData() {
-        try {
-            val timestampLong = System.currentTimeMillis()/60000
-            val timestamp = timestampLong.toString()
-            if(db.dataDAO().readAllData().isEmpty()){
-                var i = 0
-                while (i<100){
-                    val favouritesTable = DataTable(i, "data $i", false)
-                    db.dataDAO().saveData(favouritesTable)
-                    i += 1
-                }
-                getAllData()
-                getListData(1)
-                page += 1
+    private fun addDataToDB(data:String){
+        dBViewModel.saveData(data)
+        if(isAToZFilter){
+            GlobalScope.launch(Dispatchers.Main) {
+                currentListData.clear()
+                dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
+                mAdapter.upDateAdapter(currentListData)
             }
-            else{
-                getAllData()
-                getListData(1)
-                page += 1
-            }
-        } catch (e: Exception) {
-            Log.i("DUY","Error ${e.message} ")
-        }
-
-    }
-
-    private suspend fun getData(id: Int){
-        return withContext(Dispatchers.IO){
-                db.dataDAO().readData(id).let {
-                    if(it.data !=null && it.isSelect !=null){
-                        listData.forEachIndexed { index, data ->
-                            if(listData[index].id < it.dataID  && it.dataID < listData[index+1].id){
-                                listData.add(index+1,Data(it.dataID,it.data,it.isSelect))
-                            }
-                            else{
-                                listData.add(Data(it.dataID,it.data,it.isSelect))
-
-                            }
-
-                        }
-                       // currentListData.add(Data(it.dataID,it.data, it.isSelect))
-                    }
-                }
-        }
-    }
-    private suspend fun addingDataToDB(id:Int,data:String){
-        try {
-            val timestampLong = System.currentTimeMillis()/60000
-            val timestamp = timestampLong.toString()
-            if(db.dataDAO().readAllData().isNotEmpty()){
-                db.dataDAO().saveData(DataTable(id, data, false))
-                getData(id)
-            }
-            else{
-                db.dataDAO().readAllData().forEach {
-                    Log.i("DUY","""" Id id: ${it.data} """")
-                }
-                getData(id)
-            }
-        } catch (e: Exception) {
-            Log.i("DUY","Error ${e.message} ")
-        }
-
-        return withContext(Dispatchers.Main){
-            mAdapter.upDateAdapter(currentListData)
         }
     }
     //Load more//
@@ -153,69 +81,59 @@ class MainActivity : AppCompatActivity() {
                     val visibleItemCount = layoutManager.childCount
                     val pastVisibleItem = layoutManager.findFirstCompletelyVisibleItemPosition()
                     val total = mAdapter.itemCount
-                    if (isLoading) {
-                        if ((visibleItemCount + pastVisibleItem) >= total && page*25<listData.size) {
-                            page += 1
-
-                            getMorePage()
-                            isLoading = false
+                    GlobalScope.launch(Dispatchers.IO) {
+                        val sizeOfDb= dBViewModel.getSize()
+                        if (isLoading) {
+                            if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
+                                //   page += 1
+                                getMorePage()
+                                isLoading = false
+                            }
                         }
                     }
+
                 }
                 super.onScrolled(recyclerView, dx, dy)
             }
 
         })
     }
+
     private fun getMorePage(){
         isLoading = true
-        popularProgressBar.visibility = View.VISIBLE
-        Handler().postDelayed({
-            getListData(page)
-            mAdapter.upDateAdapter(currentListData)
-            popularProgressBar.visibility = View.GONE
-
-            isLoading = true
-        },1200)
-    }
-
-    private fun getListData(page: Int) {
-            val a = 25* page
-            var startAt = currentListData.size
-            while(startAt<a){
-                if(listData.size==startAt){
-                    break
+        GlobalScope.launch(Dispatchers.Main) {
+            popularProgressBar.visibility = View.VISIBLE
+            Handler().postDelayed({
+                GlobalScope.launch(Dispatchers.Main) {
+                    currentListData.addAll(dBViewModel.getData(isAToZFilter,currentListData).await())
+                    mAdapter.upDateAdapter(currentListData)
+                    popularProgressBar.visibility = View.GONE
                 }
-                currentListData.add(listData[startAt])
-                startAt += 1
-            }
+                isLoading = true
+            },1200)
+        }
+
     }
+
 
     //Load more//
     private fun deleteOnClick(){
-        tvDelete.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                GlobalScope.launch(Dispatchers.IO){
-                    try {
-                        currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
-                            if(data.isSelect){
-                                db.dataDAO().readData(data.id).let {
-                                    db.dataDAO().deleteData(DataTable(data.id,data.string,false))
-                                }
-
-                            }
-                            listData.remove(Data(data.id,data.string,data.isSelect))
+        GlobalScope.launch(Dispatchers.IO){
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
+                        if(data.isSelect){
+                            dBViewModel.deleteData(data.id,data.data)
                         }
-                        currentListData.removeIf { data: Data ->  data.isSelect}
-                    } catch (e: Exception) {
-                        Log.i("DUY","Error ${e.message} ")
                     }
-
-
+                    currentListData.removeIf { data: Data ->  data.isSelect}
                 }
-                mAdapter.upDateAdapter(currentListData)
+                GlobalScope.launch(Dispatchers.Main) {
+                    mAdapter.upDateAdapter(currentListData)
+                }
+            } catch (e: Exception) {
+                Log.i("DUY","Error ${e.message} ")
             }
-
         }
     }
 
@@ -226,7 +144,9 @@ class MainActivity : AppCompatActivity() {
             }
             mAdapter.upDateAdapter(currentListData)
         }
-        deleteOnClick()
+        tvDelete.setOnClickListener {
+            deleteOnClick()
+        }
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable) {}
             override fun beforeTextChanged(
@@ -239,32 +159,17 @@ class MainActivity : AppCompatActivity() {
                 s: CharSequence, start: Int,
                 before: Int, count: Int
             ) {
+                isAToZFilter = false
                 if(s.toString() == ""){
-                    currentListData = listData
-                    mAdapter.upDateAdapter(currentListData)
+                    refreshData()
                 }
                 else{
-                    currentListData = currentListData.filter { it.string.contains(s)}.toMutableList()
-                    tvDelete.setOnClickListener {
-                        tvDeleteClickedWhenFilter()
-//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-//                            GlobalScope.launch(Dispatchers.IO){
-//                                try {
-//                                    currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
-//                                            db.dataDAO().deleteData(DataTable(data.id,data.string,false))
-//                                            listData.remove(Data(data.id,data.string,data.isSelect))
-//                                    }
-//                                    currentListData.removeIf { data: Data ->  data.isSelect}
-//                                } catch (e: Exception) {
-//                                    Log.i("DUY","Error ${e.message} ")
-//                                }
-//                            }
-//                            currentListData.removeIf { data: Data ->  data.isSelect}
-//                            mAdapter.upDateAdapter(currentListData)
-//                        }
-
+                    GlobalScope.launch(Dispatchers.IO) {
+                        currentListData = dBViewModel.getAllData().filter { it.data.contains(s)}.toMutableList()
+                        GlobalScope.launch(Dispatchers.Main) {
+                            mAdapter.upDateAdapter(currentListData)
+                        }
                     }
-                    mAdapter.upDateAdapter(currentListData)
                 }
 
             }
@@ -273,25 +178,18 @@ class MainActivity : AppCompatActivity() {
             AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parentView: AdapterView<*>?,
-                selectedItemView: View,
+                selectedItemView: View?,
                 position: Int,
                 id: Long
             ) {
-                Log.d("DUY",spFilter.selectedItem.toString())
-                if(spFilter.selectedItem.toString()=="A-z"){
-                    currentListData = currentListData.sortedBy { it.string}.toMutableList()
-                    mAdapter.upDateAdapter(currentListData)
-                    tvDelete.setOnClickListener {
-                        tvDeleteClickedWhenFilter()
-                    }
+                if(spFilter.selectedItem.toString() == FILTER_FROM_A_TO_Z){
+                    isAToZFilter = true
                 }
-                else if(spFilter.selectedItem.toString()=="no Filter"){
-                    deleteOnClick()
-                    currentListData = listData
-                    mAdapter.upDateAdapter(currentListData)
+                else if(spFilter.selectedItem.toString() == NO_FILTER){
+                    isAToZFilter = false
                 }
+                refreshData()
             }
-
             override fun onNothingSelected(parentView: AdapterView<*>?) {
 
             }
@@ -300,22 +198,10 @@ class MainActivity : AppCompatActivity() {
             showCustomDialog()
         }
     }
-    private fun tvDeleteClickedWhenFilter(){
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            GlobalScope.launch(Dispatchers.IO){
-                try {
-                    currentListData.filter { it.isSelect }
-                        .forEachIndexed { index, data ->
-                                db.dataDAO().deleteData(DataTable(data.id,data.string,false))
-                                listData.remove(Data(data.id,data.string,data.isSelect))
-                        }
-                    currentListData.removeIf { data: Data ->  data.isSelect}
-                } catch (e: Exception) {
-                    Log.i("DUY","Error ${e.message} ")
-                }
-
-            }
-            currentListData.removeIf { data: Data ->  data.isSelect}
+    private fun refreshData(){
+        GlobalScope.launch(Dispatchers.Main) {
+            currentListData.clear()
+            currentListData =  dBViewModel.getData(isAToZFilter,currentListData).await()
             mAdapter.upDateAdapter(currentListData)
         }
     }
@@ -327,21 +213,23 @@ class MainActivity : AppCompatActivity() {
         dialog.setContentView(R.layout.dialog_custom_layout)
         val btAdd = dialog.findViewById(R.id.btAdd) as Button
         val etAddingData = dialog.findViewById(R.id.etAddingData) as EditText
-        val etUniqueIDData = dialog.findViewById(R.id.etUniqueIDData) as EditText
             btAdd.setOnClickListener {
                 val data = etAddingData.text.toString()
                 GlobalScope.launch(Dispatchers.IO){
-                    addingDataToDB(etUniqueIDData.text.toString().toInt(),data)
+                    addDataToDB(data)
                 }
                 dialog.dismiss()
             }
         dialog.show()
     }
     private fun initRecycleView() {
-        mAdapter = Adapter(currentListData)
-        rv.adapter = mAdapter
-        layoutManager = LinearLayoutManager(this@MainActivity)
-        rv.layoutManager = layoutManager
-        (rv.adapter as Adapter).notifyDataSetChanged()
+        GlobalScope.launch(Dispatchers.Main) {
+            dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
+            mAdapter = Adapter(currentListData)
+            rv.adapter = mAdapter
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            rv.layoutManager = layoutManager
+            mAdapter.notifyDataSetChanged()
+        }
     }
 }
