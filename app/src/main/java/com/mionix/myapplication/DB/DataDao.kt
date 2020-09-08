@@ -13,12 +13,12 @@ interface DataDao {
     fun readData(dataID : Int) :DataTable?
     @Query("select * from DataTable")
     fun readAllData() :List<DataTable>
-    @Query("select * from DataTable LIMIT :limMit OFFSET :startAt")
-    fun readMoreData(startAt:Int,limMit:Int):MutableList<DataTable>
+    @Query("select * from DataTable LIMIT :limit OFFSET :startAt")
+    fun readMoreData(startAt:Int,limit:Int):MutableList<DataTable>
     @Delete
     fun deleteData(data : DataTable)
     @Query("select count(data) from DataTable")
     fun getSizeOfDB(): Int
-    @Query("select * from DataTable Order by data LIMIT :limMit OFFSET :startAt")
-    fun getSortedList(startAt: Int,limMit:Int):MutableList<DataTable>
+    @Query("select * from DataTable Order by data LIMIT :limit OFFSET :startAt")
+    fun getSortedList(startAt: Int,limit:Int):MutableList<DataTable>
 }

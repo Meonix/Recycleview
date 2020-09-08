@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         initView()
         GlobalScope.launch(Dispatchers.IO) {
-            initListData()
+            dBViewModel.initListData()
         }
         initRecycleView()
         handleOnClick()
@@ -60,11 +60,6 @@ class MainActivity : AppCompatActivity() {
         val spinnerLeft = arrayOf("no Filter","A-z")
         val arrayAdapterLeft = ArrayAdapter(this@MainActivity,R.layout.support_simple_spinner_dropdown_item,spinnerLeft)
         spFilter.adapter = arrayAdapterLeft
-    }
-    private fun initListData() {
-            if(dBViewModel.getSize() == 0){
-                dBViewModel.initDataForTheFirstTime()
-            }
     }
 
 
@@ -110,7 +105,7 @@ class MainActivity : AppCompatActivity() {
             popularProgressBar.visibility = View.VISIBLE
             Handler().postDelayed({
                 GlobalScope.launch(Dispatchers.Main) {
-                    dBViewModel.getData(isAToZFilter,currentListData).let{currentListData.addAll(it.await())}
+                    currentListData.addAll(dBViewModel.getData(isAToZFilter,currentListData).await())
                     mAdapter.upDateAdapter(currentListData)
                     popularProgressBar.visibility = View.GONE
                 }
@@ -206,7 +201,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshData(){
         GlobalScope.launch(Dispatchers.Main) {
             currentListData.clear()
-            dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
+            currentListData =  dBViewModel.getData(isAToZFilter,currentListData).await()
             mAdapter.upDateAdapter(currentListData)
         }
     }
@@ -234,7 +229,7 @@ class MainActivity : AppCompatActivity() {
             rv.adapter = mAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)
             rv.layoutManager = layoutManager
-            (rv.adapter as Adapter).notifyDataSetChanged()
+            mAdapter.notifyDataSetChanged()
         }
     }
 }

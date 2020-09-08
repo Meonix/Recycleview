@@ -12,7 +12,12 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
     companion object{
         const val DATA_LIMIT_PER_CALL = 25
     }
-    fun initDataForTheFirstTime(){
+    fun initListData() {
+        if(getSize() == 0){
+            initDataForTheFirstTime()
+        }
+    }
+    private fun initDataForTheFirstTime(){
         var i = 0
         while (i<100){
             saveData("data $i")
