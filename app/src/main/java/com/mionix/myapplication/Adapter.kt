@@ -15,7 +15,7 @@ class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView){
         fun onBindData(position: Int){
             setColor(data[position])
-            itemView.tvItem.text =  data[position].string + " "+data[position].isSelect.toString()
+            itemView.tvItem.text =  data[position].data + " "+data[position].isSelect.toString()
             itemView.setOnLongClickListener {
            //         model.isSelect = true
                 data[position].isSelect = !data[position].isSelect
@@ -69,4 +69,4 @@ class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.
         holder.onBindData(position)
     }
 }
-data class Data(var id :String ,var string :String , var isSelect:Boolean)
+data class Data(var id :String ,var data :String , var isSelect:Boolean)

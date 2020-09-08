@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
                         if(data.isSelect){
-                            dBViewModel.deleteData(data.id,data.string)
+                            dBViewModel.deleteData(data.id,data.data)
                         }
                     }
                     currentListData.removeIf { data: Data ->  data.isSelect}
@@ -165,7 +165,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 else{
                     GlobalScope.launch(Dispatchers.IO) {
-                        currentListData = dBViewModel.getAllData().filter { it.string.contains(s)}.toMutableList()
+                        currentListData = dBViewModel.getAllData().filter { it.data.contains(s)}.toMutableList()
                         GlobalScope.launch(Dispatchers.Main) {
                             mAdapter.upDateAdapter(currentListData)
                         }
