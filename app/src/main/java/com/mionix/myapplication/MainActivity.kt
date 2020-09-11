@@ -1,5 +1,6 @@
 package com.mionix.myapplication
 
+import android.app.Dialog
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -7,65 +8,67 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
+import android.view.Window
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.mionix.myapplication.DB.DataTable
+import com.mionix.myapplication.DB.LocalDB
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.coroutines.*
+import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 
 class MainActivity : AppCompatActivity() {
     //load more
-    private var page = 1
-    private var isLoading = true
+
     private lateinit var layoutManager: LinearLayoutManager
     //
     private lateinit var mAdapter : Adapter
-    private var listData = mutableListOf<Data>()
-    private var currentListData = mutableListOf<Data>()
-    private var tempListData = mutableListOf<Data>()
+    private val dBViewModel : DBViewModel by viewModel()
 
+
+    companion object{
+        const val FILTER_FROM_A_TO_Z ="A-z"
+        const val NO_FILTER = "no Filter"
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         initView()
-        initListData()
+        GlobalScope.launch(Dispatchers.IO) {
+            dBViewModel.initListData()
+        }
         initRecycleView()
         handleOnClick()
         initLoadMore()
     }
-
+    override fun onDestroy() {
+        super.onDestroy()
+    }
     private fun initView() {
         val spinnerLeft = arrayOf("no Filter","A-z")
         val arrayAdapterLeft = ArrayAdapter(this@MainActivity,R.layout.support_simple_spinner_dropdown_item,spinnerLeft)
         spFilter.adapter = arrayAdapterLeft
     }
 
-    private fun initListData() {
-        var i = 0
-        while (i<10){
-            listData.add(Data("Adsad",false))
-            listData.add(Data("gdsad",false))
-            listData.add(Data("Cdsad",false))
-            listData.add(Data("tdsad",false))
-            listData.add(Data("ydsad",false))
-            listData.add(Data("wdsad",false))
-            listData.add(Data("qdsad",false))
-            listData.add(Data("uafwq",false))
-            listData.add(Data("ajk",false))
-            listData.add(Data("badsv",false))
-            listData.add(Data("Basd",false))
-            listData.add(Data("csaeq",false))
-            listData.add(Data("QWT",false))
-            listData.add(Data("Adsad",false))
-            listData.add(Data("Adsad",false))
-            listData.add(Data("rqwqwd",false))
-            i += 1
+
+    private fun addDataToDB(data:String){
+        dBViewModel.saveData(data)
+        if(dBViewModel.isAToZFilter){
+                GlobalScope.launch(Dispatchers.IO) {
+                    dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,false)
+                }
         }
-
     }
-
+    //Load more//
     private fun initLoadMore() {
         rv.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -73,55 +76,77 @@ class MainActivity : AppCompatActivity() {
                     val visibleItemCount = layoutManager.childCount
                     val pastVisibleItem = layoutManager.findFirstCompletelyVisibleItemPosition()
                     val total = mAdapter.itemCount
-                    if (isLoading) {
-                        if ((visibleItemCount + pastVisibleItem) >= total) {
-                            page += 1
-
-                            getMorePage()
-                            isLoading = false
+                    GlobalScope.launch(Dispatchers.IO) {
+                        val sizeOfDb= dBViewModel.getSize()
+                        val sizeOfListSearch = dBViewModel.getSizeDataOfSearch(etSearch.text.toString())
+                        if (dBViewModel.isLoading) {
+                            if((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfListSearch){
+                                getMorePage()
+                                dBViewModel.isLoading = false
+                            }
+                            else if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
+                                //   page += 1
+                                getMorePage()
+                                dBViewModel.isLoading = false
+                            }
                         }
                     }
+
                 }
                 super.onScrolled(recyclerView, dx, dy)
             }
 
         })
     }
-    private fun getMorePage(){
-        isLoading = true
-        popularProgressBar.visibility = View.VISIBLE
-        Handler().postDelayed({
-            getListData(page)
-            mAdapter.upDateAdapter(currentListData)
-            popularProgressBar.visibility = View.GONE
 
-            isLoading = true
-        },1200)
+    private fun getMorePage(){
+        dBViewModel.isLoading = true
+        GlobalScope.launch(Dispatchers.Main) {
+            popularProgressBar.visibility = View.VISIBLE
+            Handler().postDelayed({
+                GlobalScope.launch(Dispatchers.Main) {
+                    GlobalScope.launch(Dispatchers.IO) {
+                        if(etSearch.text.toString().isNotEmpty()){
+                            dBViewModel.search(etSearch.text.toString(),false)
+                        }
+                        else{
+                            dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,false)
+                        }
+                    }
+                    popularProgressBar.visibility = View.GONE
+                }
+                dBViewModel.isLoading = true
+            },1200)
+        }
+
     }
 
-    private fun getListData(page: Int) {
-            val a = 25* page
-            var startAt = currentListData.size
-            while(startAt<a){
-                currentListData.add(listData[startAt])
-                startAt += 1
-            }
 
+    //Load more//
+    private fun deleteOnClick(){
+                dBViewModel.getListData.observe(this@MainActivity, Observer { listData ->
+                    listData.filter { it.isSelect }.forEach{
+                        if(it.isSelect){
+                            GlobalScope.launch(Dispatchers.IO) {
+                                dBViewModel.deleteData(it.id,it.data)
+                            }
+                        }
+                    }
+                    mAdapter.upDateAdapter(listData)
+                })
     }
 
     private fun handleOnClick() {
         tvClear.setOnClickListener {
-            currentListData.forEachIndexed { index, data ->
-                data.isSelect = false
-            }
-            mAdapter.upDateAdapter(currentListData)
+            dBViewModel.getListData.observe(this@MainActivity, Observer {
+                it.forEach {data ->
+                    data.isSelect = false
+                }
+                mAdapter.upDateAdapter(it)
+            })
         }
         tvDelete.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                currentListData.removeIf { data: Data ->  data.isSelect}
-                mAdapter.upDateAdapter(currentListData)
-            }
-
+            deleteOnClick()
         }
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable) {}
@@ -135,46 +160,69 @@ class MainActivity : AppCompatActivity() {
                 s: CharSequence, start: Int,
                 before: Int, count: Int
             ) {
-                if(s==""){
-                    mAdapter.upDateAdapter(currentListData)
-                }
-                else{
-                    tempListData = currentListData.filter { it.string.contains(s)}.toMutableList()
-                    mAdapter.upDateAdapter(tempListData)
-                }
-
+                dBViewModel.isAToZFilter = false
+                dBViewModel.search(s.toString(),true)
             }
         })
         spFilter.onItemSelectedListener = object :
             AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parentView: AdapterView<*>?,
-                selectedItemView: View,
+                selectedItemView: View?,
                 position: Int,
                 id: Long
             ) {
-                Log.d("DUY",spFilter.selectedItem.toString())
-                if(spFilter.selectedItem.toString()=="A-z"){
-                    tempListData = currentListData.sortedBy { it.string}.toMutableList()
-                    mAdapter.upDateAdapter(tempListData)
+                if(spFilter.selectedItem.toString() == FILTER_FROM_A_TO_Z){
+                    dBViewModel.isAToZFilter = true
                 }
-                else if(spFilter.selectedItem.toString()=="no Filter"){
-                    mAdapter.upDateAdapter(currentListData)
+                else if(spFilter.selectedItem.toString() == NO_FILTER){
+                    dBViewModel.isAToZFilter = false
                 }
+                refreshData()
             }
-
             override fun onNothingSelected(parentView: AdapterView<*>?) {
 
             }
         }
+        fab.setOnClickListener {
+            showCustomDialog()
+        }
     }
 
+    private fun refreshData(){
+            GlobalScope.launch(Dispatchers.IO) {
+                dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,true)
+            }
+    }
+    private fun showCustomDialog() {
+        val dialog = Dialog(this@MainActivity)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setCancelable(true)
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.setContentView(R.layout.dialog_custom_layout)
+        val btAdd = dialog.findViewById(R.id.btAdd) as Button
+        val etAddingData = dialog.findViewById(R.id.etAddingData) as EditText
+            btAdd.setOnClickListener {
+                val data = etAddingData.text.toString()
+                GlobalScope.launch(Dispatchers.IO){
+                    addDataToDB(data)
+                }
+                dialog.dismiss()
+            }
+        dialog.show()
+    }
     private fun initRecycleView() {
-        getListData(page)
-        mAdapter = Adapter(currentListData)
-        rv.adapter = mAdapter
-        layoutManager = LinearLayoutManager(this@MainActivity)
-        rv.layoutManager = layoutManager
-        (rv.adapter as Adapter).notifyDataSetChanged()
+        GlobalScope.launch(Dispatchers.Main) {
+            mAdapter = Adapter()
+            rv.adapter = mAdapter
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            rv.layoutManager = layoutManager
+            GlobalScope.launch(Dispatchers.IO) {
+                dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,true)
+            }
+            dBViewModel.getListData.observe(this@MainActivity, Observer {
+                mAdapter.upDateAdapter(it)
+            })
+        }
     }
 }
