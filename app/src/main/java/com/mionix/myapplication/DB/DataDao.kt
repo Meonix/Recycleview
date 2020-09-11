@@ -21,4 +21,8 @@ interface DataDao {
     fun getSizeOfDB(): Int
     @Query("select * from DataTable Order by data LIMIT :limit OFFSET :startAt")
     fun getSortedList(startAt: Int,limit:Int):MutableList<DataTable>
+    @Query("select * from DataTable where data Like '%' || :searchKey  || '%' LIMIT :limit OFFSET :startAt")
+    fun searchData(searchKey:String,limit: Int,startAt: Int) : List<DataTable>?
+    @Query("select count(data) from DataTable where data Like '%' || :searchKey  || '%'")
+    fun getSizeOfSearchListDB(searchKey:String): Int
 }

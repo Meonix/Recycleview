@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.android.synthetic.main.item.view.*
 import java.util.*
 
-class Adapter(private var data:MutableList<Data>): RecyclerView.Adapter<Adapter.ViewHolder>() {
+class Adapter(private var data:MutableList<Data> = mutableListOf()): RecyclerView.Adapter<Adapter.ViewHolder>() {
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView){
         fun onBindData(position: Int){
             setColor(data[position])

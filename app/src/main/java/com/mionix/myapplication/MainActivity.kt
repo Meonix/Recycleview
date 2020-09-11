@@ -15,6 +15,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.mionix.myapplication.DB.DataTable
@@ -31,7 +32,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutManager: LinearLayoutManager
     //
     private lateinit var mAdapter : Adapter
-    private var currentListData = mutableListOf<Data>()
     private val dBViewModel : DBViewModel by viewModel()
     private var isAToZFilter = false
 
@@ -50,7 +50,6 @@ class MainActivity : AppCompatActivity() {
         handleOnClick()
         initLoadMore()
     }
-
     override fun onDestroy() {
         super.onDestroy()
         isLoading = true
@@ -66,11 +65,9 @@ class MainActivity : AppCompatActivity() {
     private fun addDataToDB(data:String){
         dBViewModel.saveData(data)
         if(isAToZFilter){
-            GlobalScope.launch(Dispatchers.Main) {
-                currentListData.clear()
-                dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
-                mAdapter.upDateAdapter(currentListData)
-            }
+                GlobalScope.launch(Dispatchers.IO) {
+                    dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+                }
         }
     }
     //Load more//
@@ -83,8 +80,13 @@ class MainActivity : AppCompatActivity() {
                     val total = mAdapter.itemCount
                     GlobalScope.launch(Dispatchers.IO) {
                         val sizeOfDb= dBViewModel.getSize()
+                        val sizeOfListSearch = dBViewModel.getSizeDataOfSearch(etSearch.text.toString())
                         if (isLoading) {
-                            if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
+                            if((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfListSearch){
+                                getMorePage()
+                                isLoading = false
+                            }
+                            else if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
                                 //   page += 1
                                 getMorePage()
                                 isLoading = false
@@ -105,8 +107,14 @@ class MainActivity : AppCompatActivity() {
             popularProgressBar.visibility = View.VISIBLE
             Handler().postDelayed({
                 GlobalScope.launch(Dispatchers.Main) {
-                    currentListData.addAll(dBViewModel.getData(isAToZFilter,currentListData).await())
-                    mAdapter.upDateAdapter(currentListData)
+                    GlobalScope.launch(Dispatchers.IO) {
+                        if(etSearch.text.toString().isNotEmpty()){
+                            dBViewModel.search(etSearch.text.toString(),false)
+                        }
+                        else{
+                            dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+                        }
+                    }
                     popularProgressBar.visibility = View.GONE
                 }
                 isLoading = true
@@ -118,31 +126,26 @@ class MainActivity : AppCompatActivity() {
 
     //Load more//
     private fun deleteOnClick(){
-        GlobalScope.launch(Dispatchers.IO){
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    currentListData.filter { it.isSelect }.forEachIndexed { index, data ->
-                        if(data.isSelect){
-                            dBViewModel.deleteData(data.id,data.data)
+                dBViewModel.getListData.observe(this@MainActivity, Observer { listData ->
+                    listData.filter { it.isSelect }.forEach{
+                        if(it.isSelect){
+                            GlobalScope.launch(Dispatchers.IO) {
+                                dBViewModel.deleteData(it.id,it.data)
+                            }
                         }
                     }
-                    currentListData.removeIf { data: Data ->  data.isSelect}
-                }
-                GlobalScope.launch(Dispatchers.Main) {
-                    mAdapter.upDateAdapter(currentListData)
-                }
-            } catch (e: Exception) {
-                Log.i("DUY","Error ${e.message} ")
-            }
-        }
+                    mAdapter.upDateAdapter(listData)
+                })
     }
 
     private fun handleOnClick() {
         tvClear.setOnClickListener {
-            currentListData.forEachIndexed { index, data ->
-                data.isSelect = false
-            }
-            mAdapter.upDateAdapter(currentListData)
+            dBViewModel.getListData.observe(this@MainActivity, Observer {
+                it.forEach {data ->
+                    data.isSelect = false
+                }
+                mAdapter.upDateAdapter(it)
+            })
         }
         tvDelete.setOnClickListener {
             deleteOnClick()
@@ -160,18 +163,7 @@ class MainActivity : AppCompatActivity() {
                 before: Int, count: Int
             ) {
                 isAToZFilter = false
-                if(s.toString() == ""){
-                    refreshData()
-                }
-                else{
-                    GlobalScope.launch(Dispatchers.IO) {
-                        currentListData = dBViewModel.getAllData().filter { it.data.contains(s)}.toMutableList()
-                        GlobalScope.launch(Dispatchers.Main) {
-                            mAdapter.upDateAdapter(currentListData)
-                        }
-                    }
-                }
-
+                dBViewModel.search(s.toString(),true)
             }
         })
         spFilter.onItemSelectedListener = object :
@@ -198,12 +190,11 @@ class MainActivity : AppCompatActivity() {
             showCustomDialog()
         }
     }
+
     private fun refreshData(){
-        GlobalScope.launch(Dispatchers.Main) {
-            currentListData.clear()
-            currentListData =  dBViewModel.getData(isAToZFilter,currentListData).await()
-            mAdapter.upDateAdapter(currentListData)
-        }
+            GlobalScope.launch(Dispatchers.IO) {
+                dBViewModel.getMoreDataWithFilter(isAToZFilter,0)
+            }
     }
     private fun showCustomDialog() {
         val dialog = Dialog(this@MainActivity)
@@ -224,12 +215,16 @@ class MainActivity : AppCompatActivity() {
     }
     private fun initRecycleView() {
         GlobalScope.launch(Dispatchers.Main) {
-            dBViewModel.getData(isAToZFilter,currentListData).let {currentListData =  it.await()}
-            mAdapter = Adapter(currentListData)
+            mAdapter = Adapter()
             rv.adapter = mAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)
             rv.layoutManager = layoutManager
-            mAdapter.notifyDataSetChanged()
+            GlobalScope.launch(Dispatchers.IO) {
+                dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+            }
+            dBViewModel.getListData.observe(this@MainActivity, Observer {
+                mAdapter.upDateAdapter(it)
+            })
         }
     }
 }

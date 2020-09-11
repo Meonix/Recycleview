@@ -1,14 +1,15 @@
 package com.mionix.myapplication
 
-import androidx.lifecycle.ViewModel
+import android.util.Log
+import androidx.lifecycle.*
 import com.mionix.myapplication.DB.DataTable
 import com.mionix.myapplication.DB.LocalDB
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import java.util.*
 
 class DBViewModel(private val mDB: LocalDB) : ViewModel() {
+    private val _getListData = MutableLiveData<MutableList<Data>>()
+    val getListData: LiveData<MutableList<Data>> get() = _getListData
     companion object{
         const val DATA_LIMIT_PER_CALL = 25
     }
@@ -17,6 +18,24 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
             initDataForTheFirstTime()
         }
     }
+    fun search(searchString : String,firstTimeLoad:Boolean) = _getListData.value?.let {
+        viewModelScope.launch {
+            if(firstTimeLoad){
+                _getListData.value = mutableListOf()
+            }
+            val data = async(Dispatchers.IO) {
+                mDB.dataDAO()
+                    .searchData(searchString, DATA_LIMIT_PER_CALL, _getListData.value?.size ?: 0)
+                    ?.filter { it.data != null }?.map {
+                        Log.d("TAG", "search: ${it.data}")
+                    Data(it.dataID, it.data!!, it.isSelect)
+                }?.toMutableList()
+            }
+            data.await()?.let { it1 -> _getListData.value?.addAll(it1) }
+        }
+
+    }
+
     private fun initDataForTheFirstTime(){
         var i = 0
         while (i<100){
@@ -25,9 +44,9 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
         }
 
     }
-    fun getMoreData(firstIndex :Int) : MutableList<Data>{
+    private fun getMoreData(){
         val list = mutableListOf<Data>()
-        mDB.dataDAO().readMoreData(firstIndex,DATA_LIMIT_PER_CALL).forEachIndexed { index, dataTable ->
+        mDB.dataDAO().readMoreData(_getListData.value?.size ?: 0,DATA_LIMIT_PER_CALL).forEachIndexed { index, dataTable ->
             if(dataTable.data!=null){
                 list.add(Data(dataTable.dataID,dataTable.data,dataTable.isSelect))
             }
@@ -36,33 +55,28 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
 //        mDB.dataDAO().readMoreData(firstIndex,DATA_LIMIT_PER_CALL).filter{ it.data != null }.map {
 //           Data(it.dataID, it.data!!,it.isSelect)
 //        }.toMutableList()
-        return list
+        viewModelScope.launch {
+            _getListData.value =  ((_getListData.value ?: mutableListOf()) + list).toMutableList()
+        }
     }
-//    fun getData(id: Int): Data? {
-//            var mData : Data? = null
-//            mDB.dataDAO().readData(id).let {
-//                if(it.data !=null && it.isSelect !=null){
-//                    mData =  Data(it.dataID,it.data, it.isSelect)
-//                    return mData
-//                }
-//                return mData
-//            }
-//    }
-    fun getListDataSorted(firstIndex: Int):MutableList<Data>{
+    private fun getListDataSorted(){
         val list = mutableListOf<Data>()
-        mDB.dataDAO().getSortedList(firstIndex,DATA_LIMIT_PER_CALL).forEachIndexed { index, dataTable ->
+        mDB.dataDAO().getSortedList(_getListData.value?.size ?: 0,DATA_LIMIT_PER_CALL).forEachIndexed { index, dataTable ->
             if(dataTable.data!=null){
                 list.add(Data(dataTable.dataID,dataTable.data,dataTable.isSelect))
             }
+        }
+        viewModelScope.launch {
+            _getListData.value = ((_getListData.value ?: mutableListOf()) + list).toMutableList()
         }
     //another way
 //        mDB.dataDAO().getSortedList(firstIndex,DATA_LIMIT_PER_CALL).filter{ it.data != null }.map {
 //           Data(it.dataID, it.data!!,it.isSelect)
 //        }.toMutableList()
-        return list
     }
     fun deleteData(id:String,data:String){
             mDB.dataDAO().deleteData(DataTable(id,data,false))
+            _getListData.value?.remove(Data(id,data,true))
     }
     @Throws(Exception::class)
     fun createTransactionID(): String? {
@@ -77,6 +91,9 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
     fun getSize():Int{
         return mDB.dataDAO().getSizeOfDB()
     }
+    fun getSizeDataOfSearch(searchString: String):Int{
+        return mDB.dataDAO().getSizeOfSearchListDB(searchString)
+    }
     fun getAllData():MutableList<Data>{
         val mListData = mutableListOf<Data>()
         mDB.dataDAO().readAllData().forEach { dataTable ->
@@ -90,16 +107,23 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
 //        }.toMutableList()
         return mListData
     }
-    //this function to hearing data form observerList every time when page is changed
-    fun getData(isAToZFilter: Boolean,currentListData: MutableList<Data>): Deferred<MutableList<Data>> {
-        return GlobalScope.async {
-            getMoreData(isAToZFilter,currentListData)
+
+    fun getMoreDataWithFilter(isAToZFilter:Boolean, itemCount:Int){
+        viewModelScope.launch  {
+             if(itemCount==0){
+                _getListData.value = mutableListOf()
+             }
+            withContext(Dispatchers.IO){
+                if(isAToZFilter){
+                    getListDataSorted()
+                }
+                else{
+                    getMoreData()
+                }
+            }
         }
-    }
-    private fun getMoreData(isAToZFilter:Boolean, currentListData:MutableList<Data>):MutableList<Data>{
-        if(isAToZFilter){
-            return getListDataSorted(currentListData.size)
-        }
-        return getMoreData(currentListData.size)
+
+
+
     }
 }
