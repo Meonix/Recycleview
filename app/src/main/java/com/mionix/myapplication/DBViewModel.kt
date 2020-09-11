@@ -9,6 +9,8 @@ import java.util.*
 
 class DBViewModel(private val mDB: LocalDB) : ViewModel() {
     private val _getListData = MutableLiveData<MutableList<Data>>()
+    var isLoading = true
+    var isAToZFilter = false
     val getListData: LiveData<MutableList<Data>> get() = _getListData
     companion object{
         const val DATA_LIMIT_PER_CALL = 25
@@ -21,17 +23,17 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
     fun search(searchString : String,firstTimeLoad:Boolean) = _getListData.value?.let {
         viewModelScope.launch {
             if(firstTimeLoad){
-                _getListData.value = mutableListOf()
+                it.clear()
             }
             val data = async(Dispatchers.IO) {
                 mDB.dataDAO()
-                    .searchData(searchString, DATA_LIMIT_PER_CALL, _getListData.value?.size ?: 0)
+                    .searchData(searchString, DATA_LIMIT_PER_CALL, it.size)
                     ?.filter { it.data != null }?.map {
                         Log.d("TAG", "search: ${it.data}")
                     Data(it.dataID, it.data!!, it.isSelect)
                 }?.toMutableList()
             }
-            data.await()?.let { it1 -> _getListData.value?.addAll(it1) }
+            data.await()?.let { it1 -> it.addAll(it1) }
         }
 
     }
@@ -108,9 +110,9 @@ class DBViewModel(private val mDB: LocalDB) : ViewModel() {
         return mListData
     }
 
-    fun getMoreDataWithFilter(isAToZFilter:Boolean, itemCount:Int){
+    fun getMoreDataWithFilter(isAToZFilter:Boolean, reset:Boolean){
         viewModelScope.launch  {
-             if(itemCount==0){
+             if(reset){
                 _getListData.value = mutableListOf()
              }
             withContext(Dispatchers.IO){

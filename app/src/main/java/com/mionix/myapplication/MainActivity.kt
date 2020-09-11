@@ -28,12 +28,12 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : AppCompatActivity() {
     //load more
-    private var isLoading = true
+
     private lateinit var layoutManager: LinearLayoutManager
     //
     private lateinit var mAdapter : Adapter
     private val dBViewModel : DBViewModel by viewModel()
-    private var isAToZFilter = false
+
 
     companion object{
         const val FILTER_FROM_A_TO_Z ="A-z"
@@ -52,8 +52,6 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         super.onDestroy()
-        isLoading = true
-        isAToZFilter = false
     }
     private fun initView() {
         val spinnerLeft = arrayOf("no Filter","A-z")
@@ -64,9 +62,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun addDataToDB(data:String){
         dBViewModel.saveData(data)
-        if(isAToZFilter){
+        if(dBViewModel.isAToZFilter){
                 GlobalScope.launch(Dispatchers.IO) {
-                    dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+                    dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,false)
                 }
         }
     }
@@ -81,15 +79,15 @@ class MainActivity : AppCompatActivity() {
                     GlobalScope.launch(Dispatchers.IO) {
                         val sizeOfDb= dBViewModel.getSize()
                         val sizeOfListSearch = dBViewModel.getSizeDataOfSearch(etSearch.text.toString())
-                        if (isLoading) {
+                        if (dBViewModel.isLoading) {
                             if((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfListSearch){
                                 getMorePage()
-                                isLoading = false
+                                dBViewModel.isLoading = false
                             }
                             else if ((visibleItemCount + pastVisibleItem) >= total && mAdapter.itemCount < sizeOfDb) {
                                 //   page += 1
                                 getMorePage()
-                                isLoading = false
+                                dBViewModel.isLoading = false
                             }
                         }
                     }
@@ -102,7 +100,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getMorePage(){
-        isLoading = true
+        dBViewModel.isLoading = true
         GlobalScope.launch(Dispatchers.Main) {
             popularProgressBar.visibility = View.VISIBLE
             Handler().postDelayed({
@@ -112,12 +110,12 @@ class MainActivity : AppCompatActivity() {
                             dBViewModel.search(etSearch.text.toString(),false)
                         }
                         else{
-                            dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+                            dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,false)
                         }
                     }
                     popularProgressBar.visibility = View.GONE
                 }
-                isLoading = true
+                dBViewModel.isLoading = true
             },1200)
         }
 
@@ -162,7 +160,7 @@ class MainActivity : AppCompatActivity() {
                 s: CharSequence, start: Int,
                 before: Int, count: Int
             ) {
-                isAToZFilter = false
+                dBViewModel.isAToZFilter = false
                 dBViewModel.search(s.toString(),true)
             }
         })
@@ -175,10 +173,10 @@ class MainActivity : AppCompatActivity() {
                 id: Long
             ) {
                 if(spFilter.selectedItem.toString() == FILTER_FROM_A_TO_Z){
-                    isAToZFilter = true
+                    dBViewModel.isAToZFilter = true
                 }
                 else if(spFilter.selectedItem.toString() == NO_FILTER){
-                    isAToZFilter = false
+                    dBViewModel.isAToZFilter = false
                 }
                 refreshData()
             }
@@ -193,7 +191,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshData(){
             GlobalScope.launch(Dispatchers.IO) {
-                dBViewModel.getMoreDataWithFilter(isAToZFilter,0)
+                dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,true)
             }
     }
     private fun showCustomDialog() {
@@ -220,7 +218,7 @@ class MainActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@MainActivity)
             rv.layoutManager = layoutManager
             GlobalScope.launch(Dispatchers.IO) {
-                dBViewModel.getMoreDataWithFilter(isAToZFilter,mAdapter.itemCount)
+                dBViewModel.getMoreDataWithFilter(dBViewModel.isAToZFilter,true)
             }
             dBViewModel.getListData.observe(this@MainActivity, Observer {
                 mAdapter.upDateAdapter(it)
